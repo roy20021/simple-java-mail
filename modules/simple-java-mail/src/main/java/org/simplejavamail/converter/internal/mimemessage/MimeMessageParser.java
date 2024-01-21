@@ -56,7 +56,8 @@ import static org.simplejavamail.internal.util.MiscUtil.extractCID;
 import static org.simplejavamail.internal.util.MiscUtil.valueNullOrEmpty;
 
 /**
- * Parses a MimeMessage and stores the individual parts such a plain text, HTML text and attachments.
+ * Parses a MimeMessage and stores the individual parts such a plain text, HTML
+ * text and attachments.
  *
  * @version current: MimeMessageParser.java 2016-02-25 Benny Bottema
  */
@@ -78,7 +79,8 @@ public final class MimeMessageParser {
 	/**
 	 * Extracts the content of a MimeMessage recursively.
 	 */
-	public static ParsedMimeMessageComponents parseMimeMessage(@NotNull final MimeMessage mimeMessage, boolean fetchAttachmentData) {
+	public static ParsedMimeMessageComponents parseMimeMessage(@NotNull final MimeMessage mimeMessage,
+			boolean fetchAttachmentData) {
 		final ParsedMimeMessageComponents parsedComponents = new ParsedMimeMessageComponents();
 		parsedComponents.messageId = parseMessageId(mimeMessage);
 		parsedComponents.sentDate = parseSentDate(mimeMessage);
@@ -89,11 +91,12 @@ public final class MimeMessageParser {
 		parsedComponents.fromAddress = parseFromAddress(mimeMessage);
 		parsedComponents.replyToAddresses = parseReplyToAddresses(mimeMessage);
 		parseMimePartTree(mimeMessage, parsedComponents, fetchAttachmentData);
-		moveInvalidEmbeddedResourcesToAttachments(parsedComponents);
+		moveNonEmbeddedResourcesToAttachments(parsedComponents);
 		return parsedComponents;
 	}
 
-	private static void parseMimePartTree(@NotNull final MimePart currentPart, @NotNull final ParsedMimeMessageComponents parsedComponents, final boolean fetchAttachmentData) {
+	private static void parseMimePartTree(@NotNull final MimePart currentPart,
+			@NotNull final ParsedMimeMessageComponents parsedComponents, final boolean fetchAttachmentData) {
 		for (final DecodedHeader header : retrieveAllHeaders(currentPart)) {
 			parseHeader(header, parsedComponents);
 		}
@@ -106,7 +109,8 @@ public final class MimeMessageParser {
 		} else if (isMimeType(currentPart, "text/html") && !Part.ATTACHMENT.equalsIgnoreCase(disposition)) {
 			parsedComponents.htmlContent.append((Object) parseContent(currentPart));
 			checkContentTransferEncoding(currentPart, parsedComponents);
-		} else if (isMimeType(currentPart, "text/calendar") && parsedComponents.calendarContent == null && !Part.ATTACHMENT.equalsIgnoreCase(disposition)) {
+		} else if (isMimeType(currentPart, "text/calendar") && parsedComponents.calendarContent == null
+				&& !Part.ATTACHMENT.equalsIgnoreCase(disposition)) {
 			parsedComponents.calendarContent = parseCalendarContent(currentPart);
 			parsedComponents.calendarMethod = parseCalendarMethod(currentPart);
 			checkContentTransferEncoding(currentPart, parsedComponents);
@@ -116,24 +120,25 @@ public final class MimeMessageParser {
 				parseMimePartTree(getBodyPartAtIndex(mp, i), parsedComponents, fetchAttachmentData);
 			}
 		} else {
+			final String contentId = parseContentID(currentPart);
+
 			final DataSource ds = createDataSource(currentPart, fetchAttachmentData);
-			// if the diposition is not provided, for now the part should be treated as inline (later non-embedded inline attachments are moved)
-			if (Part.ATTACHMENT.equalsIgnoreCase(disposition)) {
-				parsedComponents.attachmentList.add(parseAttachment(parseContentID(currentPart), currentPart, ds));
-			} else if (disposition == null || Part.INLINE.equalsIgnoreCase(disposition)) {
-				if (parseContentID(currentPart) != null) {
-					parsedComponents.cidMap.put(parseContentID(currentPart), ds);
-				} else {
-					// contentID missing -> treat as standard attachment
-					parsedComponents.attachmentList.add(parseAttachment(null, currentPart, ds));
-				}
+			final MimeDataSource attachmentDataSource = parseAttachment(contentId, currentPart, ds);
+
+			// https://github.com/bbottema/simple-java-mail/issues/491:
+			// regardless
+			// disposition, for now the part should be treated as
+			// inline (later non-embedded attachments are moved)
+			if (contentId != null) {
+				parsedComponents.cidMap.put(contentId, attachmentDataSource);
 			} else {
-				throw new IllegalStateException("invalid attachment type");
+				parsedComponents.attachmentList.add(attachmentDataSource);
 			}
 		}
 	}
 
-	private static void checkContentTransferEncoding(final MimePart currentPart, @NotNull final ParsedMimeMessageComponents parsedComponents) {
+	private static void checkContentTransferEncoding(final MimePart currentPart,
+			@NotNull final ParsedMimeMessageComponents parsedComponents) {
 		if (parsedComponents.contentTransferEncoding == null) {
 			for (final DecodedHeader header : retrieveAllHeaders(currentPart)) {
 				if (isEmailHeader(header, "Content-Transfer-Encoding")) {
@@ -143,16 +148,15 @@ public final class MimeMessageParser {
 		}
 	}
 
-	private static MimeDataSource parseAttachment(@Nullable final String contentId, final @NotNull MimePart mimePart, final DataSource ds) {
-		return MimeDataSource.builder()
-				.name(parseResourceNameOrUnnamed(contentId, parseFileName(mimePart)))
-				.dataSource(ds)
-				.contentDescription(parseContentDescription(mimePart))
-				.contentTransferEncoding(parseContentTransferEncoding(mimePart))
-				.build();
+	private static MimeDataSource parseAttachment(@Nullable final String contentId, final @NotNull MimePart mimePart,
+			final DataSource ds) {
+		return MimeDataSource.builder().name(parseResourceNameOrUnnamed(contentId, parseFileName(mimePart)))
+				.dataSource(ds).contentDescription(parseContentDescription(mimePart))
+				.contentTransferEncoding(parseContentTransferEncoding(mimePart)).build();
 	}
 
-	private static void parseHeader(final DecodedHeader header, @NotNull final ParsedMimeMessageComponents parsedComponents) {
+	private static void parseHeader(final DecodedHeader header,
+			@NotNull final ParsedMimeMessageComponents parsedComponents) {
 		val headerValue = decodeText(header.getValue());
 		val headerName = decodeText(header.getName());
 
@@ -171,10 +175,8 @@ public final class MimeMessageParser {
 	}
 
 	private static boolean isEmailHeader(DecodedHeader header, String emailHeaderName) {
-		return header.getName().equals(emailHeaderName) &&
-				!valueNullOrEmpty(header.getValue()) &&
-				!valueNullOrEmpty(header.getValue().trim()) &&
-				!header.getValue().equals("<>");
+		return header.getName().equals(emailHeaderName) && !valueNullOrEmpty(header.getValue())
+				&& !valueNullOrEmpty(header.getValue().trim()) && !header.getValue().equals("<>");
 	}
 
 	@SuppressWarnings("WeakerAccess")
@@ -193,25 +195,26 @@ public final class MimeMessageParser {
 			throw new MimeMessageParseException(MimeMessageParseException.ERROR_GETTING_FILENAME, e);
 		}
 	}
-	
-	/**
-     * @return Returns the "content" part as String from the Calendar content type
-     */
-    public static String parseCalendarContent(@NotNull MimePart currentPart) {
-        Object content = parseContent(currentPart);
-        if (content instanceof InputStream) {
-            final InputStream calendarContent = (InputStream) content;
-            try {
-                return MiscUtil.readInputStreamToString(calendarContent, UTF_8);
-            } catch (IOException e) {
-                throw new MimeMessageParseException(MimeMessageParseException.ERROR_PARSING_CALENDAR_CONTENT, e);
-            }
-        }
-        return String.valueOf(content);
-    }
 
 	/**
-	 * @return Returns the "method" part from the Calendar content type (such as "{@code text/calendar; charset="UTF-8"; method="REQUEST"}").
+	 * @return Returns the "content" part as String from the Calendar content type
+	 */
+	public static String parseCalendarContent(@NotNull MimePart currentPart) {
+		Object content = parseContent(currentPart);
+		if (content instanceof InputStream) {
+			final InputStream calendarContent = (InputStream) content;
+			try {
+				return MiscUtil.readInputStreamToString(calendarContent, UTF_8);
+			} catch (IOException e) {
+				throw new MimeMessageParseException(MimeMessageParseException.ERROR_PARSING_CALENDAR_CONTENT, e);
+			}
+		}
+		return String.valueOf(content);
+	}
+
+	/**
+	 * @return Returns the "method" part from the Calendar content type (such as
+	 *         "{@code text/calendar; charset="UTF-8"; method="REQUEST"}").
 	 */
 	@SuppressWarnings("WeakerAccess")
 	public static String parseCalendarMethod(@NotNull MimePart currentPart) {
@@ -231,9 +234,7 @@ public final class MimeMessageParser {
 	@Nullable
 	public static String parseContentID(@NotNull final MimePart currentPart) {
 		try {
-			return ofNullable(currentPart.getContentID())
-					.map(MimeMessageParser::decodeText)
-					.orElse(null);
+			return ofNullable(currentPart.getContentID()).map(MimeMessageParser::decodeText).orElse(null);
 		} catch (final MessagingException e) {
 			throw new MimeMessageParseException(MimeMessageParseException.ERROR_GETTING_CONTENT_ID, e);
 		}
@@ -244,7 +245,8 @@ public final class MimeMessageParser {
 		try {
 			return (MimeBodyPart) parentMultiPart.getBodyPart(index);
 		} catch (final MessagingException e) {
-			throw new MimeMessageParseException(format(MimeMessageParseException.ERROR_GETTING_BODYPART_AT_INDEX, index), e);
+			throw new MimeMessageParseException(
+					format(MimeMessageParseException.ERROR_GETTING_BODYPART_AT_INDEX, index), e);
 		}
 	}
 
@@ -257,7 +259,7 @@ public final class MimeMessageParser {
 		}
 	}
 
-	@SuppressWarnings({"WeakerAccess", "unchecked"})
+	@SuppressWarnings({ "WeakerAccess", "unchecked" })
 	public static <T> T parseContent(@NotNull final MimePart currentPart) {
 		try {
 			return (T) currentPart.getContent();
@@ -277,7 +279,8 @@ public final class MimeMessageParser {
 	}
 
 	@NotNull
-	private static String parseResourceNameOrUnnamed(@Nullable final String possibleWrappedContentID, @NotNull final String fileName) {
+	private static String parseResourceNameOrUnnamed(@Nullable final String possibleWrappedContentID,
+			@NotNull final String fileName) {
 		String resourceName = parseResourceName(possibleWrappedContentID, fileName);
 		return valueNullOrEmpty(resourceName) ? "unnamed" : resourceName;
 	}
@@ -295,9 +298,7 @@ public final class MimeMessageParser {
 	@NotNull
 	public static List<DecodedHeader> retrieveAllHeaders(@NotNull final MimePart part) {
 		try {
-			return Collections.list(part.getAllHeaders()).stream()
-					.map(DecodedHeader::of)
-					.collect(toList());
+			return Collections.list(part.getAllHeaders()).stream().map(DecodedHeader::of).collect(toList());
 		} catch (final MessagingException e) {
 			throw new MimeMessageParseException(MimeMessageParseException.ERROR_GETTING_ALL_HEADERS, e);
 		}
@@ -311,7 +312,8 @@ public final class MimeMessageParser {
 			if (e.getMessage().equals("Empty address")) {
 				return null;
 			}
-			throw new MimeMessageParseException(format(MimeMessageParseException.ERROR_PARSING_ADDRESS, typeOfAddress, address), e);
+			throw new MimeMessageParseException(
+					format(MimeMessageParseException.ERROR_PARSING_ADDRESS, typeOfAddress, address), e);
 		}
 	}
 
@@ -320,7 +322,8 @@ public final class MimeMessageParser {
 	 *
 	 * @param part     the current MimePart
 	 * @param mimeType the mime type to check
-	 * @return {@code true} if the MimePart matches the given mime type, {@code false} otherwise
+	 * @return {@code true} if the MimePart matches the given mime type,
+	 *         {@code false} otherwise
 	 */
 	@SuppressWarnings("WeakerAccess")
 	public static boolean isMimeType(@NotNull final MimePart part, @NotNull final String mimeType) {
@@ -366,7 +369,8 @@ public final class MimeMessageParser {
 
 		if (fetchAttachmentData) {
 			final String contentType = MiscUtil.parseBaseMimeType(dataSource.getContentType());
-			final ByteArrayDataSource result = new ByteArrayDataSource(readContent(retrieveInputStream(dataSource)), contentType);
+			final ByteArrayDataSource result = new ByteArrayDataSource(readContent(retrieveInputStream(dataSource)),
+					contentType);
 			result.setName(dataSourceName);
 			return result;
 		} else {
@@ -417,20 +421,25 @@ public final class MimeMessageParser {
 
 	@SuppressWarnings("WeakerAccess")
 	@Nullable
-	public static Address[] retrieveRecipients(@NotNull final MimeMessage mimeMessage, final RecipientType recipientType) {
+	public static Address[] retrieveRecipients(@NotNull final MimeMessage mimeMessage,
+			final RecipientType recipientType) {
 		try {
-			// return mimeMessage.getRecipients(recipientType); // can fail in strict mode, see https://github.com/bbottema/simple-java-mail/issues/227
-			// workaround following (copied and modified from JavaMail internal code):
+			// return mimeMessage.getRecipients(recipientType); // can fail in
+			// strict mode,
+			// see https://github.com/bbottema/simple-java-mail/issues/227
+			// workaround following (copied and modified from JavaMail internal
+			// code):
 			// and while we're at it, properly decode the personal names
 			val recipientHeader = mimeMessage.getHeader(getHeaderName(recipientType), ",");
-			return ofNullable(recipientHeader)
-					.map(unchecked(h -> InternetAddress.parseHeader(h, false)))
+			return ofNullable(recipientHeader).map(unchecked(h -> InternetAddress.parseHeader(h, false)))
 					.map(ias -> Arrays.stream(ias)
-							.map(unchecked(ia -> new InternetAddress(ia.getAddress(), decodePersonalName(ia.getPersonal()))))
+							.map(unchecked(
+									ia -> new InternetAddress(ia.getAddress(), decodePersonalName(ia.getPersonal()))))
 							.toArray(Address[]::new))
 					.orElse(null);
 		} catch (final MessagingException e) {
-			throw new MimeMessageParseException(format(MimeMessageParseException.ERROR_GETTING_RECIPIENTS, recipientType), e);
+			throw new MimeMessageParseException(
+					format(MimeMessageParseException.ERROR_GETTING_RECIPIENTS, recipientType), e);
 		}
 	}
 
@@ -453,18 +462,17 @@ public final class MimeMessageParser {
 	@Nullable
 	public static String parseContentDescription(@NotNull final MimePart mimePart) {
 		try {
-			return ofNullable(mimePart.getHeader("Content-Description", ","))
-					.map(MimeMessageParser::decodeText)
+			return ofNullable(mimePart.getHeader("Content-Description", ",")).map(MimeMessageParser::decodeText)
 					.orElse(null);
 		} catch (final MessagingException e) {
 			throw new MimeMessageParseException(MimeMessageParseException.ERROR_GETTING_CONTENT_DESCRIPTION, e);
 		}
 	}
+
 	@Nullable
 	public static String parseContentTransferEncoding(@NotNull final MimePart mimePart) {
 		try {
-			return ofNullable(mimePart.getHeader("Content-Transfer-Encoding", ","))
-					.map(MimeMessageParser::decodeText)
+			return ofNullable(mimePart.getHeader("Content-Transfer-Encoding", ",")).map(MimeMessageParser::decodeText)
 					.orElse(null);
 		} catch (final MessagingException e) {
 			throw new MimeMessageParseException(MimeMessageParseException.ERROR_GETTING_CONTENT_TRANSFER_ENCODING, e);
@@ -543,13 +551,19 @@ public final class MimeMessageParser {
 		}
 	}
 
-	static void moveInvalidEmbeddedResourcesToAttachments(ParsedMimeMessageComponents parsedComponents) {
+	static void moveNonEmbeddedResourcesToAttachments(ParsedMimeMessageComponents parsedComponents) {
 		final String htmlContent = parsedComponents.htmlContent.toString();
-		for (Iterator<Map.Entry<String, DataSource>> it = parsedComponents.cidMap.entrySet().iterator(); it.hasNext(); ) {
+		for (Iterator<Map.Entry<String, DataSource>> it = parsedComponents.cidMap.entrySet().iterator(); it
+				.hasNext();) {
 			Map.Entry<String, DataSource> cidEntry = it.next();
 			String cid = extractCID(cidEntry.getKey());
 			if (!htmlContent.contains("cid:" + cid)) {
-				parsedComponents.attachmentList.add(new MimeDataSource(cid, cidEntry.getValue(), null, null));
+				if (cidEntry.getValue() instanceof MimeDataSource) {
+					parsedComponents.attachmentList.add((MimeDataSource) cidEntry.getValue());
+				} else {
+					parsedComponents.attachmentList.add(new MimeDataSource(cid, cidEntry.getValue(), null, null));
+				}
+
 				it.remove();
 			}
 		}
@@ -563,19 +577,30 @@ public final class MimeMessageParser {
 		private final List<InternetAddress> toAddresses = new ArrayList<>();
 		private final List<InternetAddress> ccAddresses = new ArrayList<>();
 		private final List<InternetAddress> bccAddresses = new ArrayList<>();
-		@Nullable private String messageId;
-		@Nullable private String subject;
-		@Nullable private InternetAddress fromAddress;
-		@Nullable private InternetAddress replyToAddresses;
-		@Nullable private InternetAddress dispositionNotificationTo;
-		@Nullable private InternetAddress returnReceiptTo;
-		@Nullable private InternetAddress bounceToAddress;
-		@Nullable private String contentTransferEncoding;
+		@Nullable
+		private String messageId;
+		@Nullable
+		private String subject;
+		@Nullable
+		private InternetAddress fromAddress;
+		@Nullable
+		private InternetAddress replyToAddresses;
+		@Nullable
+		private InternetAddress dispositionNotificationTo;
+		@Nullable
+		private InternetAddress returnReceiptTo;
+		@Nullable
+		private InternetAddress bounceToAddress;
+		@Nullable
+		private String contentTransferEncoding;
 		private final StringBuilder plainContent = new StringBuilder();
 		final StringBuilder htmlContent = new StringBuilder();
-		@Nullable private String calendarMethod;
-		@Nullable private String calendarContent;
-		@Nullable private Date sentDate;
+		@Nullable
+		private String calendarMethod;
+		@Nullable
+		private String calendarContent;
+		@Nullable
+		private Date sentDate;
 
 		@Nullable
 		public String getPlainContent() {
@@ -594,14 +619,14 @@ public final class MimeMessageParser {
 	}
 
 	/**
-	 * DataContentHandler for text/calendar, based on {@link org.eclipse.angus.mail.handlers.text_html}.
+	 * DataContentHandler for text/calendar, based on
+	 * {@link org.eclipse.angus.mail.handlers.text_html}.
 	 * <p>
 	 * The unfortunate class name matches Java Mail's handler naming convention.
 	 */
 	static class text_calendar extends text_plain {
 		private static final ActivationDataFlavor[] myDF = {
-				new ActivationDataFlavor(String.class, "text/calendar", "iCalendar String")
-		};
+				new ActivationDataFlavor(String.class, "text/calendar", "iCalendar String") };
 
 		@Override
 		protected ActivationDataFlavor[] getDataFlavors() {

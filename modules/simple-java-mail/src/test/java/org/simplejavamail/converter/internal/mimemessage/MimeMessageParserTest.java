@@ -36,7 +36,7 @@ import static jakarta.mail.Message.RecipientType.TO;
 import static java.lang.String.format;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.simplejavamail.converter.internal.mimemessage.MimeMessageParser.moveInvalidEmbeddedResourcesToAttachments;
+import static org.simplejavamail.converter.internal.mimemessage.MimeMessageParser.moveNonEmbeddedResourcesToAttachments;
 
 public class MimeMessageParserTest {
 
@@ -122,7 +122,7 @@ public class MimeMessageParserTest {
 		ParsedMimeMessageComponents parsedComponents = new ParsedMimeMessageComponents();
 		parsedComponents.cidMap.put("moo1", new ByteArrayDataSource("moomoo", "text/plain"));
 		parsedComponents.cidMap.put("moo2", new ByteArrayDataSource("moomoo", "text/plain"));
-		moveInvalidEmbeddedResourcesToAttachments(parsedComponents);
+		moveNonEmbeddedResourcesToAttachments(parsedComponents);
 		
 		assertThat(parsedComponents.cidMap).isEmpty();
 		assertThat(parsedComponents.attachmentList).extracting("name").containsOnly("moo1", "moo2");
@@ -134,7 +134,7 @@ public class MimeMessageParserTest {
 		parsedComponents.htmlContent.append("blah moo1 blah html");
 		parsedComponents.cidMap.put("moo1", new ByteArrayDataSource("moomoo", "text/plain"));
 		parsedComponents.cidMap.put("moo2", new ByteArrayDataSource("moomoo", "text/plain"));
-		moveInvalidEmbeddedResourcesToAttachments(parsedComponents);
+		moveNonEmbeddedResourcesToAttachments(parsedComponents);
 		
 		assertThat(parsedComponents.cidMap).isEmpty();
 		assertThat(parsedComponents.attachmentList).extracting(MimeDataSource::getName).containsOnly("moo1", "moo2");
@@ -146,7 +146,7 @@ public class MimeMessageParserTest {
 		parsedComponents.htmlContent.append("blah cid:moo1 blah html");
 		parsedComponents.cidMap.put("moo1", new ByteArrayDataSource("moomoo", "text/plain"));
 		parsedComponents.cidMap.put("moo2", new ByteArrayDataSource("moomoo", "text/plain"));
-		moveInvalidEmbeddedResourcesToAttachments(parsedComponents);
+		moveNonEmbeddedResourcesToAttachments(parsedComponents);
 		
 		assertThat(parsedComponents.cidMap).containsOnlyKeys("moo1");
 		assertThat(parsedComponents.attachmentList).extracting(MimeDataSource::getName).containsOnly("moo2");

@@ -1,18 +1,21 @@
 package org.simplejavamail.util;
 
-import jakarta.mail.util.ByteArrayDataSource;
-import org.jetbrains.annotations.NotNull;
-import org.simplejavamail.api.email.AttachmentResource;
-import org.simplejavamail.api.email.Email;
-import org.simplejavamail.api.mailer.config.Pkcs12Config;
-import org.simplejavamail.internal.util.MiscUtil;
+import static demo.ResourceFolderHelper.determineResourceFolder;
+import static java.util.Objects.requireNonNull;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-import static demo.ResourceFolderHelper.determineResourceFolder;
-import static java.util.Objects.requireNonNull;
+import org.jetbrains.annotations.NotNull;
+import org.simplejavamail.api.email.AttachmentResource;
+import org.simplejavamail.api.email.Email;
+import org.simplejavamail.api.mailer.config.Pkcs12Config;
+import org.simplejavamail.converter.internal.mimemessage.MimeDataSource;
+import org.simplejavamail.internal.util.MiscUtil;
+
+import jakarta.activation.DataSource;
+import jakarta.mail.util.ByteArrayDataSource;
 
 public class TestDataHelper {
 
@@ -28,16 +31,24 @@ public class TestDataHelper {
 	public static void retrofitLostOriginalAttachmentNames(final Email emailResultFromConvertedMimeMessage) {
 		for (AttachmentResource attachment : emailResultFromConvertedMimeMessage.getAttachments()) {
 			if (requireNonNull(attachment.getName()).equals("dresscode.txt")) {
-				((ByteArrayDataSource) attachment.getDataSource()).setName("dresscode-ignored-because-of-override.txt");
+				setName(attachment.getDataSource(), "dresscode-ignored-because-of-override.txt");
 			} else if (requireNonNull(attachment.getName()).equals("fixedNameWithoutFileExtensionForNamedAttachment.txt")) { //.txt was added when generating the MimeMessage
 				MiscUtil.assignToInstanceField(attachment, "name", "fixedNameWithoutFileExtensionForNamedAttachment");
-				((ByteArrayDataSource) attachment.getDataSource()).setName("dresscode-ignored-because-of-override.txt");
+				setName(attachment.getDataSource(), "dresscode-ignored-because-of-override.txt");
 			}
 		}
 		for (AttachmentResource embeddedImage : emailResultFromConvertedMimeMessage.getEmbeddedImages()) {
 			if (requireNonNull(embeddedImage.getName()).equals("fixedNameWithoutFileExtensionForNamedEmbeddedImage")) {
-				((ByteArrayDataSource) embeddedImage.getDataSource()).setName("thumbsupNamed-ignored-because-of-override.png");
+				setName(embeddedImage.getDataSource(), "thumbsupNamed-ignored-because-of-override.png");
 			}
+		}
+	}
+	
+	private static void setName(DataSource dataSource, String name) {
+		if(dataSource instanceof MimeDataSource) {
+			((MimeDataSource) dataSource).setName(name);
+		} else if(dataSource instanceof ByteArrayDataSource) {
+			((ByteArrayDataSource) dataSource).setName(name);
 		}
 	}
 
